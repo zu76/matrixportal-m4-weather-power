@@ -1,0 +1,12 @@
+settings.toml
+boot_out.txt
+.vscode/
+__pycache__/
+*.pyc
+
+# FAT filesystem metadata (macOS / Windows)
+.Trashes
+.fseventsd/
+.metadata_never_index
+.DS_Store
+System Volume Information/
