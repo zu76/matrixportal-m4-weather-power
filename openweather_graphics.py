@@ -201,8 +201,10 @@ class OpenWeather_Graphics(displayio.Group):
             self._power_bar.value = powerTotal
 
     def store_data(self, power, battery):
-        self._last_power = power
-        self._last_battery = battery
+        if power is not None:
+            self._last_power = power
+        if battery is not None:
+            self._last_battery = battery
 
     def display_battery(self, battery):
         pct = int(float(battery["state"]))

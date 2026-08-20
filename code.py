@@ -94,6 +94,7 @@ print("gfx loaded")
 localtime_refresh = None
 weather_refresh = None
 power_refresh = None
+battery_refresh = None
 bottom_refresh = None
 bottom_mode = True  # True = show power load, False = show battery %
 
@@ -167,7 +168,7 @@ while True:
 
                 weather_refresh = time.monotonic()
 
-            # only query the power every 10 seconds
+            # query power load every 10 seconds — one request, fast
             if (not RequestExecuted) and ((not power_refresh) or (time.monotonic() - power_refresh) > 10):
                 print("***** Executing Power - ", end="")
                 headers = {
@@ -180,16 +181,24 @@ while True:
                     print("Some error on Power occured, retrying! -", e)
                     microcontroller.reset()
                     continue
+                gfx.store_data(value_load, None)
+                power_refresh = time.monotonic()
+                RequestExecuted = True
 
-                # Battery is best-effort: wrong entity ID or HA hiccup must not reboot
-                value_battery = None
+            # query battery separately every 60 seconds — changes slowly, no need for same cadence
+            elif (not RequestExecuted) and ((not battery_refresh) or (time.monotonic() - battery_refresh) > 60):
+                print("***** Executing Battery - ", end="")
+                headers = {
+                    "Authorization": f"Bearer {BEARER_TOKEN}",
+                    "Content-Type": "application/json",
+                }
                 try:
                     value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
+                    gfx.store_data(None, value_battery)
                 except Exception as e:
                     print("Battery fetch skipped: ", e)
-
-                gfx.store_data(value_load, value_battery)
-                power_refresh = time.monotonic()
+                battery_refresh = time.monotonic()
+                RequestExecuted = True
 
             # Scroll first so the animation is never interrupted mid-label.
             # Any fetch pause falls at the natural transition between labels.
