@@ -22,7 +22,6 @@ from adafruit_matrixportal.network import Network
 from adafruit_matrixportal.matrix import Matrix
 
 import openweather_graphics  # pylint: disable=wrong-import-position
-import power
 
 
 ### ------------- Portal Matrix origingal Setup ----------------
@@ -200,7 +199,9 @@ async def network_task():
 
 
 async def main():
-    await asyncio.gather(scroll_task(), network_task())
+    asyncio.create_task(network_task())
+    await scroll_task()
 
 
+gc.collect()
 asyncio.run(main())
