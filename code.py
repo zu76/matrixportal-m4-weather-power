@@ -74,7 +74,7 @@ BEARER_TOKEN = os.getenv("BEARER_TOKEN")
 # --- Power setup ---
 DATA_SOURCE_POWER_LOAD    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_load_power"
 DATA_SOURCE_POWER_SITE    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_grid_power"
-DATA_SOURCE_POWER_BATTERY = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_charge"
+DATA_SOURCE_POWER_BATTERY = "http://192.168.1.15:8123/api/states/sensor.croods_home_charge"
 
 
 
