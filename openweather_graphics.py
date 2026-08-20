@@ -238,13 +238,6 @@ class OpenWeather_Graphics(displayio.Group):
         # set the icon
         self.set_icon(weather["weather"][0]["icon"])
 
-        city_name = weather["name"] + ", " + weather["sys"]["country"]
-        print(city_name)
-        if not self.city_text:
-            self.city_text = Label(self.small_font, text=city_name)
-            self.city_text.color = CITY_COLOR
-            self._scrolling_texts.append(self.city_text)
-
         temperature = weather["main"]["temp"]
         print(temperature)
         if self.celsius:
