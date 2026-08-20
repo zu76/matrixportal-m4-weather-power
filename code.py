@@ -72,8 +72,9 @@ SCROLL_HOLD_TIME = 0  # set this to hold each line before finishing scroll
 BEARER_TOKEN = os.getenv("BEARER_TOKEN")
  
 # --- Power setup ---
-DATA_SOURCE_POWER_LOAD = ( "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_load_power" )
-DATA_SOURCE_POWER_SITE = ( "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_grid_power" )
+DATA_SOURCE_POWER_LOAD    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_load_power"
+DATA_SOURCE_POWER_SITE    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_grid_power"
+DATA_SOURCE_POWER_BATTERY = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_charge"
 
 
 
@@ -92,6 +93,8 @@ print("gfx loaded")
 localtime_refresh = None
 weather_refresh = None
 power_refresh = None
+bottom_refresh = None
+bottom_mode = True  # True = show power load, False = show battery %
 
 
 # ------------- Wifi  Setup ------------- #
@@ -167,26 +170,27 @@ while True:
             if (not RequestExecuted) and ((not power_refresh) or (time.monotonic() - power_refresh) > 10):
                 print("***** Executing Power - ", end="")
                 try:
-                    # Prepare HTTP POST headers and data
                     headers = {
                         "Authorization": f"Bearer {BEARER_TOKEN}",
                         "Content-Type": "application/json",
-                        }
-                    
-                    value = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,)) 
-                    #value1 = network.fetch_data(DATA_SOURCE_POWER_SITE, headers=headers, json_path=(DATA_LOCATION,)) 
-
-                    #ne basta uno, temporaneamente passo due volte finchè non risolvo
-                    gfx.display_power(value, value)
-                    
-                    #pwr.display_power(value)
-                except Exception as e: #RuntimeError
+                    }
+                    value_load    = network.fetch_data(DATA_SOURCE_POWER_LOAD,    headers=headers, json_path=(DATA_LOCATION,))
+                    value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
+                    gfx.store_data(value_load, value_battery)
+                except Exception as e:
                     print("Some error on Power occured, retrying! -", e)
                     microcontroller.reset()
                     continue
 
                 power_refresh = time.monotonic()
-            gfx.scroll_next_label()            
+
+            # Alternate bottom panel between power load and battery every 5 seconds
+            if (not bottom_refresh) or (time.monotonic() - bottom_refresh) > 5:
+                bottom_mode = not bottom_mode
+                gfx.show_bottom(bottom_mode)
+                bottom_refresh = time.monotonic()
+
+            gfx.scroll_next_label()
                 
         else:
             print("Current hour: " + str(time.localtime()[3]) + " they are all sleeping :-)")
