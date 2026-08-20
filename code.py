@@ -169,19 +169,25 @@ while True:
             # only query the power every 10 seconds
             if (not RequestExecuted) and ((not power_refresh) or (time.monotonic() - power_refresh) > 10):
                 print("***** Executing Power - ", end="")
+                headers = {
+                    "Authorization": f"Bearer {BEARER_TOKEN}",
+                    "Content-Type": "application/json",
+                }
                 try:
-                    headers = {
-                        "Authorization": f"Bearer {BEARER_TOKEN}",
-                        "Content-Type": "application/json",
-                    }
-                    value_load    = network.fetch_data(DATA_SOURCE_POWER_LOAD,    headers=headers, json_path=(DATA_LOCATION,))
-                    value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
-                    gfx.store_data(value_load, value_battery)
+                    value_load = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,))
                 except Exception as e:
                     print("Some error on Power occured, retrying! -", e)
                     microcontroller.reset()
                     continue
 
+                # Battery is best-effort: wrong entity ID or HA hiccup must not reboot
+                value_battery = None
+                try:
+                    value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
+                except Exception as e:
+                    print("Battery fetch skipped: ", e)
+
+                gfx.store_data(value_load, value_battery)
                 power_refresh = time.monotonic()
 
             # Alternate bottom panel between power load and battery every 5 seconds
