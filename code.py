@@ -13,8 +13,7 @@ if you can find something that spits out JSON data, we can display it
 import os
 import gc
 import time
-import asyncio
-import board
+import board 
 import microcontroller
 
 from digitalio import DigitalInOut, Direction, Pull
@@ -118,89 +117,101 @@ if retry_count == MAX_RETRIES:
     microcontroller.reset()
 
 
-## --------------- Async Tasks -------------------
+## --------------- Loop Start -------------------
+while True:
+    #We need to execute only one request per loop
+    RequestExecuted = False
 
-async def scroll_task():
-    while True:
-        await gfx.scroll_next_label_async()
-        await asyncio.sleep(SCROLL_HOLD_TIME)
+    try:
+        
+        if network.is_connected == False:
+            print("*************************************")
+            print("We are not connected, rebooting...")
+            microcontroller.reset()
+                
+            
+        # Execute only if we are in the correct timeframe
+        # print("Local Time: ", time.localtime()[3])
+        if ((time.localtime()[3] > 5) & (time.localtime()[3] < 22 )):
 
+            matrix.display.brightness = 0.1
 
-async def network_task():
-    global localtime_refresh, weather_refresh, power_refresh, bottom_refresh, bottom_mode
-
-    while True:
-        try:
-            if not network.is_connected:
-                print("Not connected, rebooting...")
-                microcontroller.reset()
-
-            if (time.localtime()[3] > 5) and (time.localtime()[3] < 22):
-                matrix.display.brightness = 0.1
-
-                # Reset local time timer once per hour (NTP call disabled)
-                if (not localtime_refresh) or (time.monotonic() - localtime_refresh) > 3600:
-                    print("***** Executing Time")
+            # only query the online time once per hour (and on first run)
+            if (not localtime_refresh) or (time.monotonic() - localtime_refresh) > 3600:
+                print("***** Executing Time")
+                try:
+                    RequestExecuted = True
+                    #print("Getting time from internet!")
+                    #network.get_local_time()
                     localtime_refresh = time.monotonic()
 
-                # Weather every 10 minutes (only if time was not just refreshed)
-                elif (not weather_refresh) or (time.monotonic() - weather_refresh) > 600:
-                    print("***** Executing Weather")
-                    try:
-                        value = network.fetch_data(DATA_SOURCE, json_path=(DATA_LOCATION,))
-                        gfx.display_weather(value)
-                    except Exception as e:
-                        print("Weather error, retrying! -", e)
-                        microcontroller.reset()
-                    weather_refresh = time.monotonic()
+                except Exception as e:
+                    print("Some error getting Time occured, retrying! -", e) 
+                    microcontroller.reset()
+                    continue
 
-                # Power load + battery every 10 seconds
-                elif (not power_refresh) or (time.monotonic() - power_refresh) > 10:
-                    print("***** Executing Power")
-                    headers = {
-                        "Authorization": f"Bearer {BEARER_TOKEN}",
-                        "Content-Type": "application/json",
-                    }
-                    try:
-                        value_load = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,))
-                    except Exception as e:
-                        print("Power error, retrying! -", e)
-                        microcontroller.reset()
-                        await asyncio.sleep(0)
-                        continue
+            # only query the weather every 10 minutes (and on first run)
+            if (not RequestExecuted) and ((not weather_refresh) or (time.monotonic() - weather_refresh) > 600):
+                print("***** Executing Weather - ", end="")
+                try:
+                    RequestExecuted = True
+                    value = network.fetch_data(DATA_SOURCE, json_path=(DATA_LOCATION,))
+                    #print("Response is", value)
+                    gfx.display_weather(value)
+                    
+                except Exception as e:
+                    print("Some error on Weather occured, retrying! -", e)
+                    microcontroller.reset()
+                    continue
 
-                    # Battery is best-effort: a bad entity ID must not reboot
-                    value_battery = None
-                    try:
-                        value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
-                    except Exception as e:
-                        print("Battery fetch skipped: ", e)
+                weather_refresh = time.monotonic()
 
-                    gfx.store_data(value_load, value_battery)
-                    power_refresh = time.monotonic()
+            # only query the power every 10 seconds
+            if (not RequestExecuted) and ((not power_refresh) or (time.monotonic() - power_refresh) > 10):
+                print("***** Executing Power - ", end="")
+                headers = {
+                    "Authorization": f"Bearer {BEARER_TOKEN}",
+                    "Content-Type": "application/json",
+                }
+                try:
+                    value_load = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,))
+                except Exception as e:
+                    print("Some error on Power occured, retrying! -", e)
+                    microcontroller.reset()
+                    continue
 
-                # Alternate bottom panel every 5 seconds (independent of fetches)
-                if (not bottom_refresh) or (time.monotonic() - bottom_refresh) > 5:
-                    bottom_mode = not bottom_mode
-                    gfx.show_bottom(bottom_mode)
-                    bottom_refresh = time.monotonic()
+                # Battery is best-effort: wrong entity ID or HA hiccup must not reboot
+                value_battery = None
+                try:
+                    value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
+                except Exception as e:
+                    print("Battery fetch skipped: ", e)
 
-            else:
-                print("Hour: " + str(time.localtime()[3]) + " - they are all sleeping :-)")
-                matrix.display.brightness = 0
-                await asyncio.sleep(60)
-                continue
+                gfx.store_data(value_load, value_battery)
+                power_refresh = time.monotonic()
 
-        except Exception as e:
-            print("Generic error, retrying! -", e)
-            await asyncio.sleep(5)
+            # Alternate bottom panel between power load and battery every 5 seconds
+            if (not bottom_refresh) or (time.monotonic() - bottom_refresh) > 5:
+                bottom_mode = not bottom_mode
+                gfx.show_bottom(bottom_mode)
+                bottom_refresh = time.monotonic()
+
+            gfx.scroll_next_label()
+                
+        else:
+            print("Current hour: " + str(time.localtime()[3]) + " they are all sleeping :-)")
+            #value = network.fetch_data(DATA_SOURCE_POWER, json_path=(DATA_LOCATION,))
+            #gfx.display_empty()
+            matrix.display.brightness = 0
+            time.sleep(60)
             continue
 
-        await asyncio.sleep(0)
 
 
-async def main():
-    await asyncio.gather(scroll_task(), network_task())
+    except Exception as e:
+        print("Some error generic occured, retrying! -", e)
+        time.sleep(5)
+        continue
 
-
-asyncio.run(main())
+    # Pause between labels
+    time.sleep(SCROLL_HOLD_TIME)
