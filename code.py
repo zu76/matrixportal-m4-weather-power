@@ -13,7 +13,8 @@ if you can find something that spits out JSON data, we can display it
 import os
 import gc
 import time
-import board 
+import board
+import displayio
 import microcontroller
 
 from digitalio import DigitalInOut, Direction, Pull
@@ -21,7 +22,6 @@ from adafruit_matrixportal.network import Network
 from adafruit_matrixportal.matrix import Matrix
 
 import openweather_graphics  # pylint: disable=wrong-import-position
-import power
 
 
 ### ------------- Portal Matrix origingal Setup ----------------
@@ -72,13 +72,15 @@ SCROLL_HOLD_TIME = 0  # set this to hold each line before finishing scroll
 BEARER_TOKEN = os.getenv("BEARER_TOKEN")
  
 # --- Power setup ---
-DATA_SOURCE_POWER_LOAD = ( "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_load_power" )
-DATA_SOURCE_POWER_SITE = ( "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_grid_power" )
+DATA_SOURCE_POWER_LOAD    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_load_power"
+DATA_SOURCE_POWER_SITE    = "http://192.168.1.15:8123/api/states/sensor.tesla_power_wall_grid_power"
+DATA_SOURCE_POWER_BATTERY = "http://192.168.1.15:8123/api/states/sensor.croods_home_charge"
 
 
 
 # --- Display setup ---
 matrix = Matrix(width=64, height=64)
+matrix.display.root_group = displayio.Group()  # blank screen — hides CircuitPython boot logo
 network = Network(status_neopixel=board.NEOPIXEL)#, debug=True)
 
 if UNITS in ("imperial", "metric"):
@@ -92,6 +94,9 @@ print("gfx loaded")
 localtime_refresh = None
 weather_refresh = None
 power_refresh = None
+battery_refresh = None
+bottom_refresh = None
+bottom_mode = True  # True = show power load, False = show battery %
 
 
 # ------------- Wifi  Setup ------------- #
@@ -163,30 +168,47 @@ while True:
 
                 weather_refresh = time.monotonic()
 
-            # only query the power every 10 seconds
+            # query power load every 10 seconds — one request, fast
             if (not RequestExecuted) and ((not power_refresh) or (time.monotonic() - power_refresh) > 10):
                 print("***** Executing Power - ", end="")
+                headers = {
+                    "Authorization": f"Bearer {BEARER_TOKEN}",
+                    "Content-Type": "application/json",
+                }
                 try:
-                    # Prepare HTTP POST headers and data
-                    headers = {
-                        "Authorization": f"Bearer {BEARER_TOKEN}",
-                        "Content-Type": "application/json",
-                        }
-                    
-                    value = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,)) 
-                    #value1 = network.fetch_data(DATA_SOURCE_POWER_SITE, headers=headers, json_path=(DATA_LOCATION,)) 
-
-                    #ne basta uno, temporaneamente passo due volte finchè non risolvo
-                    gfx.display_power(value, value)
-                    
-                    #pwr.display_power(value)
-                except Exception as e: #RuntimeError
+                    value_load = network.fetch_data(DATA_SOURCE_POWER_LOAD, headers=headers, json_path=(DATA_LOCATION,))
+                except Exception as e:
                     print("Some error on Power occured, retrying! -", e)
                     microcontroller.reset()
                     continue
-
+                gfx.store_data(value_load, None)
                 power_refresh = time.monotonic()
-            gfx.scroll_next_label()            
+                RequestExecuted = True
+
+            # query battery separately every 60 seconds — changes slowly, no need for same cadence
+            elif (not RequestExecuted) and ((not battery_refresh) or (time.monotonic() - battery_refresh) > 60):
+                print("***** Executing Battery - ", end="")
+                headers = {
+                    "Authorization": f"Bearer {BEARER_TOKEN}",
+                    "Content-Type": "application/json",
+                }
+                try:
+                    value_battery = network.fetch_data(DATA_SOURCE_POWER_BATTERY, headers=headers, json_path=(DATA_LOCATION,))
+                    gfx.store_data(None, value_battery)
+                except Exception as e:
+                    print("Battery fetch skipped: ", e)
+                battery_refresh = time.monotonic()
+                RequestExecuted = True
+
+            # Scroll first so the animation is never interrupted mid-label.
+            # Any fetch pause falls at the natural transition between labels.
+            gfx.scroll_next_label()
+
+            # Alternate bottom panel between power load and battery every 5 seconds
+            if (not bottom_refresh) or (time.monotonic() - bottom_refresh) > 5:
+                bottom_mode = not bottom_mode
+                gfx.show_bottom(bottom_mode)
+                bottom_refresh = time.monotonic()
                 
         else:
             print("Current hour: " + str(time.localtime()[3]) + " they are all sleeping :-)")

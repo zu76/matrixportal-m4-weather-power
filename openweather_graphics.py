@@ -16,6 +16,7 @@ TEMP_COLOR = 0xFFA800
 GREEN_COLOR = 0x33FF33
 YELLOW_COLOR = 0xFFFF00
 RED_COLOR = 0xE60000
+BATTERY_COLOR = 0x00AAFF  # blue for battery label prefix
 
 MAIN_COLOR = 0x9000FF  # weather condition
 DESCRIPTION_COLOR = 0x00D3FF
@@ -159,7 +160,7 @@ class OpenWeather_Graphics(displayio.Group):
         matrixportal.set_text(".", 4)
 
 
-    def display_power(self, power, power1):
+    def display_power(self, power, power1=None):
         """
         power0 = power["emeters"][0]["power"]
         power1 = power["emeters"][1]["power"]
@@ -199,20 +200,45 @@ class OpenWeather_Graphics(displayio.Group):
         else:
             self._power_bar.value = powerTotal
 
+    def store_data(self, power, battery):
+        if power is not None:
+            self._last_power = power
+        if battery is not None:
+            self._last_battery = battery
 
+    def display_battery(self, battery):
+        pct = int(float(battery["state"]))
+
+        text = str(pct) + "%"
+        if len(text) < 4:
+            text = " " + text
+        self.power_text.text = text
+
+        if pct <= 10:
+            color = RED_COLOR
+        elif pct <= 20:
+            color = YELLOW_COLOR
+        else:
+            color = BATTERY_COLOR
+
+        self.power_text.color = color
+        self._power_bar.bar_color = color
+        # Scale 0–100% into the bar's 0–6500 range
+        self._power_bar.value = int(pct * 65)
+
+    def show_bottom(self, is_power):
+        if is_power:
+            if hasattr(self, "_last_power") and self._last_power is not None:
+                self.display_power(self._last_power)
+        else:
+            if hasattr(self, "_last_battery") and self._last_battery is not None:
+                self.display_battery(self._last_battery)
 
 
 
     def display_weather(self, weather):
         # set the icon
         self.set_icon(weather["weather"][0]["icon"])
-
-        city_name = weather["name"] + ", " + weather["sys"]["country"]
-        print(city_name)
-        if not self.city_text:
-            self.city_text = Label(self.small_font, text=city_name)
-            self.city_text.color = CITY_COLOR
-            self._scrolling_texts.append(self.city_text)
 
         temperature = weather["main"]["temp"]
         print(temperature)
