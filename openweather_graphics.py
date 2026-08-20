@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import time
+import asyncio
 import displayio
 from adafruit_display_text.label import Label
 from adafruit_bitmap_font import bitmap_font
@@ -332,3 +333,28 @@ class OpenWeather_Graphics(displayio.Group):
             time.sleep(scroll_delay)
         # By blocking other code we will never leave the label half way scrolled
         #print("Scroll: " + str(self.display.width))
+
+    async def scroll_next_label_async(self):
+        if self._current_label is not None and self._scrolling_group:
+            current_text = self._scrolling_texts[self._current_label]
+            text_width = current_text.bounding_box[2]
+            for _ in range(text_width + 1):
+                self._scrolling_group.x -= 1
+                await asyncio.sleep(scroll_delay)
+
+        if self._current_label is not None:
+            self._current_label += 1
+        if self._current_label is None or self._current_label >= len(self._scrolling_texts):
+            self._current_label = 0
+
+        if self._scrolling_group:
+            self._scrolling_group.pop()
+        current_text = self._scrolling_texts[self._current_label]
+        self._scrolling_group.append(current_text)
+
+        self._scrolling_group.x = self.display.width
+        self._scrolling_group.y = 23
+
+        for _ in range(self.display.width):
+            self._scrolling_group.x -= 1
+            await asyncio.sleep(scroll_delay)
