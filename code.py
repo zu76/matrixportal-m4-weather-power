@@ -13,7 +13,8 @@ if you can find something that spits out JSON data, we can display it
 import os
 import gc
 import time
-import board 
+import board
+import displayio
 import microcontroller
 
 from digitalio import DigitalInOut, Direction, Pull
@@ -79,6 +80,7 @@ DATA_SOURCE_POWER_BATTERY = "http://192.168.1.15:8123/api/states/sensor.croods_h
 
 # --- Display setup ---
 matrix = Matrix(width=64, height=64)
+matrix.display.root_group = displayio.Group()  # blank screen — hides CircuitPython boot logo
 network = Network(status_neopixel=board.NEOPIXEL)#, debug=True)
 
 if UNITS in ("imperial", "metric"):
