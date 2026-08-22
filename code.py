@@ -202,6 +202,7 @@ while True:
 
             # Scroll first so the animation is never interrupted mid-label.
             # Any fetch pause falls at the natural transition between labels.
+            gfx.display_time()
             gfx.scroll_next_label()
 
             # Alternate bottom panel between power load and battery every 5 seconds

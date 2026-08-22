@@ -23,6 +23,7 @@ DESCRIPTION_COLOR = 0x00D3FF
 CITY_COLOR = 0x9000FF
 HUMIDITY_COLOR = 0x0000AA
 WIND_COLOR = 0xCCCCCC
+TIME_COLOR = 0xFFFFFF
 
 cwd = ("/" + __file__).rsplit("/", 1)[
     0
@@ -153,6 +154,10 @@ class OpenWeather_Graphics(displayio.Group):
         self.wind_text.color = WIND_COLOR
         self._scrolling_texts.append(self.wind_text)
 
+        self.time_text = Label(self.small_font, text="--:--")
+        self.time_text.color = TIME_COLOR
+        self._scrolling_texts.append(self.time_text)
+
     def display_empty(self):
         #power0 = power["emeters"][0]["power"]
         print (self)
@@ -226,6 +231,10 @@ class OpenWeather_Graphics(displayio.Group):
         # Scale 0–100% into the bar's 0–6500 range
         self._power_bar.value = int(pct * 65)
 
+    def display_time(self):
+        t = time.localtime()
+        self.time_text.text = "%02d:%02d" % (t[3], t[4])
+
     def show_bottom(self, is_power):
         if is_power:
             if hasattr(self, "_last_power") and self._last_power is not None:
@@ -255,7 +264,7 @@ class OpenWeather_Graphics(displayio.Group):
 
         humidity = weather["main"]["humidity"]
         print(humidity)
-        self.humidity_text.text = "%d%% humidity" % humidity
+        self.humidity_text.text = "%d%% RH" % humidity
 
         wind = weather["wind"]["speed"]
         print(wind)
